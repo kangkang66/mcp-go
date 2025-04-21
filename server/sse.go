@@ -58,6 +58,7 @@ type SSEServer struct {
 	baseURL                      string
 	basePath                     string
 	useFullURLForMessageEndpoint bool
+	appendQueryToMessageEndpoint bool
 	messageEndpoint              string
 	sseEndpoint                  string
 	sessions                     sync.Map
@@ -120,6 +121,12 @@ func WithMessageEndpoint(endpoint string) SSEOption {
 func WithUseFullURLForMessageEndpoint(useFullURLForMessageEndpoint bool) SSEOption {
 	return func(s *SSEServer) {
 		s.useFullURLForMessageEndpoint = useFullURLForMessageEndpoint
+	}
+}
+
+func WithAppendQueryToMessageEndpoint(appendQueryToMessageEndpoint bool) SSEOption {
+	return func(s *SSEServer) {
+		s.appendQueryToMessageEndpoint = appendQueryToMessageEndpoint
 	}
 }
 
@@ -308,7 +315,13 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send the initial endpoint event
-	fmt.Fprintf(w, "event: endpoint\ndata: %s\r\n\r\n", s.GetMessageEndpointForClient(sessionID))
+	messageEndpoint := s.GetMessageEndpointForClient(sessionID)
+	if s.appendQueryToMessageEndpoint {
+		if len(r.URL.RawQuery) > 0 {
+			messageEndpoint += "&" + r.URL.RawQuery
+		}
+	}
+	fmt.Fprintf(w, "event: endpoint\ndata: %s\r\n\r\n", messageEndpoint)
 	flusher.Flush()
 
 	// Main event loop - this runs in the HTTP handler goroutine
